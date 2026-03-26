@@ -5,25 +5,48 @@
   const isCF = host.includes("codeforces.com");
   const isAC = host.includes("atcoder.jp");
 
+  // 🔥 수식 기호를 완벽하게 제거하고 순수 TeX 내용만 뽑아내는 함수[cite: 7, 8, 9]
   const unrenderMathHTML = (clone) => {
     if (!clone) return "";
     clone.querySelectorAll('img').forEach(img => { img.src = img.src; });
-    clone.querySelectorAll('.katex-mathml annotation').forEach(ann => {
-      let isDisplay = ann.closest('.katex-display') !== null;
-      let wrapper = document.createElement('math-tex');
-      wrapper.setAttribute('display', isDisplay ? 'block' : 'inline');
-      wrapper.textContent = ann.textContent;
-      let root = ann.closest('.katex');
-      if (root) root.parentNode.replaceChild(wrapper, root);
+
+    // KaTeX 처리 (앳코더)[cite: 8]
+    clone.querySelectorAll('.katex').forEach(kt => {
+      const ann = kt.querySelector('annotation');
+      if (ann) {
+        let tex = ann.textContent.trim();
+        let isDisplay = kt.closest('.katex-display') !== null;
+        let wrapper = document.createElement('math-tex');
+        wrapper.setAttribute('display', isDisplay ? 'block' : 'inline');
+        wrapper.textContent = tex;
+        const target = kt.closest('.katex-display') || kt;
+        target.parentNode.replaceChild(wrapper, target);
+      }
     });
-    clone.querySelectorAll('mjx-container, script[type^="math/tex"], var').forEach(el => {
-      let tex = el.querySelector('.mjx-copytext')?.textContent || el.textContent;
-      let isDisplay = el.tagName === 'SCRIPT' ? el.type.includes('mode=display') : false;
+
+    // MathJax v3 처리 (백준)[cite: 9]
+    clone.querySelectorAll('mjx-container').forEach(mjx => {
+      const copytext = mjx.querySelector('.mjx-copytext');
+      if (copytext) {
+        let tex = copytext.textContent.trim().replace(/^\$\$?|\$\$?$/g, ''); // 🔥 기존 $ 기호 제거
+        let isDisplay = mjx.getAttribute('display') === 'true';
+        let wrapper = document.createElement('math-tex');
+        wrapper.setAttribute('display', isDisplay ? 'block' : 'inline');
+        wrapper.textContent = tex;
+        mjx.parentNode.replaceChild(wrapper, mjx);
+      }
+    });
+
+    // MathJax v2 및 기타 스크립트 처리 (코드포스)
+    clone.querySelectorAll('script[type^="math/tex"]').forEach(script => {
+      let tex = script.textContent.trim();
+      let isDisplay = script.type.includes('mode=display');
       let wrapper = document.createElement('math-tex');
       wrapper.setAttribute('display', isDisplay ? 'block' : 'inline');
       wrapper.textContent = tex;
-      el.parentNode.replaceChild(wrapper, el);
+      script.parentNode.replaceChild(wrapper, script);
     });
+
     clone.querySelectorAll('.MathJax_Preview, .MathJax, script, style').forEach(el => el.remove());
     return clone.innerHTML.trim(); 
   };
@@ -35,20 +58,20 @@
     let div = document.createElement('div');
     div.className = 'cp-trans-box tex2jax_ignore mathjax_ignore';
     div.style.cssText = "padding:15px; margin-top:15px; margin-bottom:15px; background:#f8f9fa; border-left:4px solid #007bff; font-size:16px; line-height: 1.6; overflow-x: auto; color: #666; font-style: italic;";
-    div.innerHTML = "⌛ 번역 요청 중..."; // 🔥 초기 메시지 설정
+    div.innerHTML = "⌛ 번역 요청 중...";
     target.parentNode.insertBefore(div, target.nextSibling);
     return div;
   };
 
   let sections = [];
-  if (isAC) {
+  if (isAC) { // AtCoder 전용 파싱 (영어 지문만, 예제 제외)[cite: 6]
     let root = document.querySelector('#task-statement .lang-en') || document.querySelector('#task-statement');
     root.querySelectorAll('.part').forEach((el, index) => {
       let h3 = el.querySelector('h3');
       if (h3 && (h3.innerText.toLowerCase().includes('sample') || h3.innerText.includes('예제'))) return;
       sections.push({ id: `ac_${index}`, raw: unrenderMathHTML(el.cloneNode(true)), box: createBox(el) });
     });
-  } else if (isCF) {
+  } else if (isCF) { // Codeforces 전용 파싱[cite: 5]
     let probEl = document.querySelector('.problem-statement');
     if (probEl) {
       Array.from(probEl.children).forEach((child, index) => {
@@ -57,7 +80,7 @@
         sections.push({ id: `cf_${index}`, raw: unrenderMathHTML(child.cloneNode(true)), box: createBox(child) });
       });
     }
-  } else {
+  } else { // Baekjoon[cite: 9]
     document.querySelectorAll('.problem-text').forEach((el, index) => {
       if (el.parentElement.closest('.problem-text') || el.closest('#problem_tags')) return;
       sections.push({ id: `boj_${index}`, raw: unrenderMathHTML(el.cloneNode(true)), box: createBox(el) });
@@ -80,12 +103,8 @@
       body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
     });
 
-    // 🔥 API 한도 초과 및 에러 처리 강화
-    if (res.status === 429) {
-      throw new Error("API 한도 초과 (RPM). 1분만 기다려주세요.");
-    } else if (!res.ok) {
-      throw new Error(`API 오류 (Status: ${res.status})`);
-    }
+    if (res.status === 429) throw new Error("API 한도 초과 (1분 뒤 시도)");
+    if (!res.ok) throw new Error(`API 오류 (${res.status})`);
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
@@ -106,29 +125,22 @@
             let target = sections.find(s => s.id === match[1]);
             if (target) {
               let content = match[2].trim();
+              // 🔥 사이트별 수식 기호 완벽 복원
               content = content.replace(/<math-tex display="(.*?)">([\s\S]*?)<\/math-tex>/g, (m, disp, tex) => {
                 if (isCF) return disp === 'block' ? `$$$$$$${tex}$$$$$$` : `$$$${tex}$$$`;
                 if (isAC) return disp === 'block' ? `\\[${tex}\\]` : `\\(${tex}\\)`;
                 return disp === 'block' ? `$$${tex}$$` : `$${tex}$`;
               });
-              // 🔥 번역이 들어오기 시작하면 스타일 초기화 (이탤릭 해제)
-              target.box.style.color = "#333";
-              target.box.style.fontStyle = "normal";
+              target.box.style.color = "#333"; target.box.style.fontStyle = "normal";
               target.box.innerHTML = content;
             }
           }
         } catch (e) {}
       });
     }
-    
     document.querySelectorAll('.cp-trans-box').forEach(el => el.classList.remove('tex2jax_ignore', 'mathjax_ignore'));
     chrome.runtime.sendMessage({ action: 'renderMathJax' });
   } catch (e) {
-    // 🔥 에러 발생 시 모든 상자에 에러 메시지 표시
-    sections.forEach(s => {
-      s.box.style.color = "#d93025";
-      s.box.style.fontStyle = "normal";
-      s.box.innerHTML = `❌ ${e.message}`;
-    });
+    sections.forEach(s => { s.box.style.color = "#d93025"; s.box.innerHTML = `❌ ${e.message}`; });
   }
 })();
