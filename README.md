@@ -7,8 +7,9 @@
 
 **CP Translator**는 백준(BOJ), Codeforces, AtCoder의 외국어 문제 지문을 **수식과 HTML 훼손 없이 한국어로 번역**해 주는 크롬 확장 프로그램입니다.
 
-<img width="1500" height="1000" alt="Image" src="https://github.com/user-attachments/assets/644328e8-f370-46ee-9159-4ddb06c42780" />
-
+<div style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 100%;">
+  <img src="https://github.com/user-attachments/assets/644328e8-f370-46ee-9159-4ddb06c42780" alt="프로그램 작동 예시" style="width: 100%; height: auto; display: block;">
+</div>
 </div>
 
 ---
