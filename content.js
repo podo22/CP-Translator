@@ -4,47 +4,54 @@
   const host = window.location.hostname;
   const isCF = host.includes("codeforces.com");
   const isAC = host.includes("atcoder.jp");
+  const isBOJ = host.includes("acmicpc.net");
 
-  // 🔥 수식 기호를 완벽하게 제거하고 순수 TeX 내용만 뽑아내는 함수[cite: 7, 8, 9]
-  const unrenderMathHTML = (clone) => {
+  // 1. 수식 기호를 사이트별 원본 텍스트로 치환 및 이미지 URL 백업
+  const unrenderMathHTML = (clone, imgSrcs) => {
     if (!clone) return "";
-    clone.querySelectorAll('img').forEach(img => { img.src = img.src; });
+    
+    // 이미지 환각 방지를 위한 URL 분리 로직
+    clone.querySelectorAll('img').forEach((img, i) => {
+      img.src = img.src; // 상대 경로 -> 절대 경로 변환
+      imgSrcs.push(img.src); // 원본 URL 백업
+      img.setAttribute('data-cp-img', i); // 고유 인덱스 부여
+      img.setAttribute('src', ''); // AI가 헷갈리지 않도록 비움 (토큰 절약)
+    });
 
-    // KaTeX 처리 (앳코더)[cite: 8]
+    // KaTeX 처리 (앳코더)
     clone.querySelectorAll('.katex').forEach(kt => {
       const ann = kt.querySelector('annotation');
-      if (ann) {
+      const target = kt.closest('.katex-display') || kt;
+      if (ann && target.parentNode) {
         let tex = ann.textContent.trim();
         let isDisplay = kt.closest('.katex-display') !== null;
-        let wrapper = document.createElement('math-tex');
-        wrapper.setAttribute('display', isDisplay ? 'block' : 'inline');
-        wrapper.textContent = tex;
-        const target = kt.closest('.katex-display') || kt;
-        target.parentNode.replaceChild(wrapper, target);
+        let textNode = document.createTextNode(isDisplay ? `$$${tex}$$` : `\\(${tex}\\)`);
+        target.parentNode.replaceChild(textNode, target);
       }
     });
 
-    // MathJax v3 처리 (백준)[cite: 9]
+    // MathJax v3 처리 (백준)
     clone.querySelectorAll('mjx-container').forEach(mjx => {
       const copytext = mjx.querySelector('.mjx-copytext');
-      if (copytext) {
-        let tex = copytext.textContent.trim().replace(/^\$\$?|\$\$?$/g, ''); // 🔥 기존 $ 기호 제거
+      if (copytext && mjx.parentNode) {
+        let tex = copytext.textContent.trim()
+          .replace(/^(\$\$?|\\\[|\\\()/, '') 
+          .replace(/(\$\$?|\\\]|\\\))$/, '')
+          .trim();
         let isDisplay = mjx.getAttribute('display') === 'true';
-        let wrapper = document.createElement('math-tex');
-        wrapper.setAttribute('display', isDisplay ? 'block' : 'inline');
-        wrapper.textContent = tex;
-        mjx.parentNode.replaceChild(wrapper, mjx);
+        let textNode = document.createTextNode(isDisplay ? `$$${tex}$$` : `$${tex}$`);
+        mjx.parentNode.replaceChild(textNode, mjx);
       }
     });
 
     // MathJax v2 및 기타 스크립트 처리 (코드포스)
     clone.querySelectorAll('script[type^="math/tex"]').forEach(script => {
-      let tex = script.textContent.trim();
-      let isDisplay = script.type.includes('mode=display');
-      let wrapper = document.createElement('math-tex');
-      wrapper.setAttribute('display', isDisplay ? 'block' : 'inline');
-      wrapper.textContent = tex;
-      script.parentNode.replaceChild(wrapper, script);
+      if (script.parentNode) {
+        let tex = script.textContent.trim();
+        let isDisplay = script.type.includes('mode=display');
+        let textNode = document.createTextNode(isDisplay ? `$$$$$$${tex}$$$$$$` : `$$$${tex}$$$`);
+        script.parentNode.replaceChild(textNode, script);
+      }
     });
 
     clone.querySelectorAll('.MathJax_Preview, .MathJax, script, style').forEach(el => el.remove());
@@ -64,26 +71,32 @@
   };
 
   let sections = [];
-  if (isAC) { // AtCoder 전용 파싱 (영어 지문만, 예제 제외)[cite: 6]
+  
+  if (isAC) { // AtCoder
     let root = document.querySelector('#task-statement .lang-en') || document.querySelector('#task-statement');
     root.querySelectorAll('.part').forEach((el, index) => {
       let h3 = el.querySelector('h3');
       if (h3 && (h3.innerText.toLowerCase().includes('sample') || h3.innerText.includes('예제'))) return;
-      sections.push({ id: `ac_${index}`, raw: unrenderMathHTML(el.cloneNode(true)), box: createBox(el) });
+      let imgSrcs = [];
+      sections.push({ id: `ac_${index}`, raw: unrenderMathHTML(el.cloneNode(true), imgSrcs), box: createBox(el), imgSrcs: imgSrcs });
     });
-  } else if (isCF) { // Codeforces 전용 파싱[cite: 5]
+  } else if (isCF) { // Codeforces
     let probEl = document.querySelector('.problem-statement');
     if (probEl) {
       Array.from(probEl.children).forEach((child, index) => {
         if (child.classList.contains('header') || child.classList.contains('sample-tests')) return;
         if (child.innerText.trim().length < 5) return;
-        sections.push({ id: `cf_${index}`, raw: unrenderMathHTML(child.cloneNode(true)), box: createBox(child) });
+        let imgSrcs = [];
+        sections.push({ id: `cf_${index}`, raw: unrenderMathHTML(child.cloneNode(true), imgSrcs), box: createBox(child), imgSrcs: imgSrcs });
       });
     }
-  } else { // Baekjoon[cite: 9]
+  } else if (isBOJ) { // Baekjoon
+    // 백준 블랙리스트 강화 (첨부파일 영역 제외)
+    const blacklist = ['#problem_tags', '#problem_memo', '#problem_custom_att', '#problem_source', '.problem-text .problem-text'];
     document.querySelectorAll('.problem-text').forEach((el, index) => {
-      if (el.parentElement.closest('.problem-text') || el.closest('#problem_tags')) return;
-      sections.push({ id: `boj_${index}`, raw: unrenderMathHTML(el.cloneNode(true)), box: createBox(el) });
+      if (blacklist.some(selector => el.closest(selector))) return;
+      let imgSrcs = [];
+      sections.push({ id: `boj_${index}`, raw: unrenderMathHTML(el.cloneNode(true), imgSrcs), box: createBox(el), imgSrcs: imgSrcs });
     });
   }
 
@@ -92,7 +105,7 @@
   const fullPrompt = `다음 HTML 형태의 경쟁 프로그래밍 지문을 한국어로 번역해.
 규칙:
 1. HTML 태그(<table>, <tr>, <td>, <ul>, <p>, <strong>, <img> 등)는 절대 건드리지 말고 원본 HTML 뼈대를 그대로 유지해.
-2. 수식($, $$, $$$, \\(...\\), \\[...\\])은 절대 번역하거나 훼손하지 마.
+2. 텍스트 내의 수식 기호($, $$, $$$, \\(...\\), \\[...\\]) 안의 내용은 절대 번역하지 말고, 기호 자체도 원본 그대로 유지해.
 3. 인사말이나 부연 설명 없이, 오직 번역된 HTML 텍스트만 출력해.
 각 영역은 [ID: 영문아이디] 태그로 구분되어 있어. 번역할 때도 반드시 이 태그를 그대로 먼저 출력하고 그 아래에 번역된 HTML을 적어줘.\n\n` + 
   sections.map(s => `[ID: ${s.id}]\n${s.raw}`).join('\n\n');
@@ -110,37 +123,54 @@
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let accumulatedText = "";
+    let streamBuffer = ""; 
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break; 
-      let chunk = decoder.decode(value, { stream: true });
-      chunk.split('data: ').forEach(data => {
-        if (!data.trim()) return;
+      
+      streamBuffer += decoder.decode(value, { stream: true });
+      let lines = streamBuffer.split('\n');
+      streamBuffer = lines.pop(); // 완성되지 않은 마지막 줄은 버퍼에 남김
+
+      for (let line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let dataStr = line.replace(/^data:\s*/, '').trim();
+        if (!dataStr) continue;
+
         try {
-          let json = JSON.parse(data);
+          let json = JSON.parse(dataStr);
           accumulatedText += json.candidates[0].content.parts[0].text;
+          
           let regex = /\[ID:\s*([a-zA-Z0-9_-]+)\]([\s\S]*?)(?=\[ID:|$)/g;
           let match;
           while ((match = regex.exec(accumulatedText)) !== null) {
             let target = sections.find(s => s.id === match[1]);
             if (target) {
               let content = match[2].trim();
-              // 🔥 사이트별 수식 기호 완벽 복원
-              content = content.replace(/<math-tex display="(.*?)">([\s\S]*?)<\/math-tex>/g, (m, disp, tex) => {
-                if (isCF) return disp === 'block' ? `$$$$$$${tex}$$$$$$` : `$$$${tex}$$$`;
-                if (isAC) return disp === 'block' ? `\\[${tex}\\]` : `\\(${tex}\\)`;
-                return disp === 'block' ? `$$${tex}$$` : `$${tex}$`;
-              });
-              target.box.style.color = "#333"; target.box.style.fontStyle = "normal";
+              target.box.style.color = "#333"; 
+              target.box.style.fontStyle = "normal";
               target.box.innerHTML = content;
+
+              // 🔥 번역이 끝난 후 이미지 원본 경로 완벽 복원
+              target.box.querySelectorAll('img').forEach(img => {
+                let idx = img.getAttribute('data-cp-img');
+                if (idx !== null && target.imgSrcs[idx]) {
+                  img.src = target.imgSrcs[idx];
+                }
+              });
             }
           }
-        } catch (e) {}
-      });
+        } catch (e) {
+          // JSON 파싱 에러는 무시 (다음 청크에서 완성됨)
+        }
+      }
     }
+    
+    // 렌더링 준비
     document.querySelectorAll('.cp-trans-box').forEach(el => el.classList.remove('tex2jax_ignore', 'mathjax_ignore'));
     chrome.runtime.sendMessage({ action: 'renderMathJax' });
+    
   } catch (e) {
     sections.forEach(s => { s.box.style.color = "#d93025"; s.box.innerHTML = `❌ ${e.message}`; });
   }
