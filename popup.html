@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      width: 300px;
+      padding: 16px;
+      margin: 0;
+      background-color: #f8f9fa;
+      color: #333;
+    }
+    h2 {
+      font-size: 18px;
+      margin: 0 0 12px 0;
+      color: #1a73e8;
+      text-align: center;
+    }
+    .input-group {
+      margin-bottom: 12px;
+    }
+    input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 8px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    #saveBtn {
+      background-color: #e8f0fe;
+      color: #1a73e8;
+    }
+    #saveBtn:hover { background-color: #d2e3fc; }
+    #translateBtn {
+      background-color: #1a73e8;
+      color: white;
+    }
+    #translateBtn:hover { background-color: #1557b0; }
+    #status {
+      font-size: 12px;
+      text-align: center;
+      color: #0f9d58;
+      min-height: 15px;
+      margin-bottom: 5px;
+    }
+    /* 추가된 디버그 스위치 스타일 */
+    .debug-toggle {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 12px;
+      color: #555;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2>CP Translator</h2>
+  
+  <div class="input-group">
+    <input type="text" id="apiKeyInput" placeholder="Gemini API 키를 입력하세요">
+  </div>
+  
+  <button id="saveBtn">API 키 저장</button>
+  <button id="translateBtn">🚀 현재 페이지 번역하기</button>
+  
+  <div id="status"></div>
+
+  <!-- 🔥 디버그 로그 체크박스 -->
+  <div class="debug-toggle">
+    <label style="cursor: pointer;">
+      <input type="checkbox" id="logToggle"> 🐛 콘솔창에 디버그 로그 출력
+    </label>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
