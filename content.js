@@ -58,8 +58,12 @@
     return clone.innerHTML.trim(); 
   };
 
-  let { apiKey } = await chrome.storage.local.get('apiKey');
+  // 🔥 스토리지에서 apiKey와 함께 aiModel도 가져오기 (없으면 기본값 설정)
+  let { apiKey, aiModel } = await chrome.storage.local.get(['apiKey', 'aiModel']);
   if (!apiKey) return;
+  
+  // 사용자가 모델을 선택하지 않은 초기 상태라면 기본적으로 빠른 lite 모델을 사용
+  const targetModel = aiModel || "gemini-2.5-flash-lite";
 
   const createBox = (target) => {
     let div = document.createElement('div');
@@ -110,8 +114,9 @@
 각 영역은 [ID: 영문아이디] 태그로 구분되어 있어. 번역할 때도 반드시 이 태그를 그대로 먼저 출력하고 그 아래에 번역된 HTML을 적어줘.\n\n` + 
   sections.map(s => `[ID: ${s.id}]\n${s.raw}`).join('\n\n');
 
+
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?alt=sse&key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })

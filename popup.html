@@ -20,13 +20,21 @@
     .input-group {
       margin-bottom: 12px;
     }
-    input[type="text"] {
+    input[type="text"], select {
       width: 100%;
       box-sizing: border-box;
       padding: 8px;
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 14px;
+    }
+    /* 🔥 추가된 모델 선택 레이블 스타일 */
+    .model-label {
+      font-size: 12px;
+      font-weight: bold;
+      color: #555;
+      display: block;
+      margin-bottom: 4px;
     }
     button {
       width: 100%;
@@ -47,6 +55,7 @@
     #translateBtn {
       background-color: #1a73e8;
       color: white;
+      margin-top: 10px;
     }
     #translateBtn:hover { background-color: #1557b0; }
     #status {
@@ -56,7 +65,6 @@
       min-height: 15px;
       margin-bottom: 5px;
     }
-    /* 추가된 디버그 스위치 스타일 */
     .debug-toggle {
       margin-top: 10px;
       text-align: center;
@@ -72,13 +80,21 @@
   <div class="input-group">
     <input type="text" id="apiKeyInput" placeholder="Gemini API 키를 입력하세요">
   </div>
+
+  <!-- 🔥 추가된 모델 선택 영역 -->
+  <div class="input-group">
+    <label class="model-label" for="modelSelect">번역 엔진 선택</label>
+    <select id="modelSelect">
+      <option value="gemini-2.5-flash-lite">⚡ 스피드 모드 (Flash-Lite, 매우 빠름)</option>
+      <option value="gemini-2.5-flash">🎯 정확도 모드 (Flash, 자연스러움)</option>
+    </select>
+  </div>
   
-  <button id="saveBtn">API 키 저장</button>
+  <button id="saveBtn">설정 저장</button>
   <button id="translateBtn">🚀 현재 페이지 번역하기</button>
   
   <div id="status"></div>
 
-  <!-- 🔥 디버그 로그 체크박스 -->
   <div class="debug-toggle">
     <label style="cursor: pointer;">
       <input type="checkbox" id="logToggle"> 🐛 콘솔창에 디버그 로그 출력
